@@ -7,6 +7,7 @@ from inspect import iscoroutinefunction
 
 from asgiref.sync import async_to_sync, sync_to_async
 
+from django.utils.deprecation import RemovedInDjango71Warning
 from django.utils.inspect import func_accepts_kwargs
 
 logger = logging.getLogger("django.dispatch")
@@ -238,6 +239,28 @@ class Signal:
 
         Return a list of tuple pairs [(receiver, response), ... ].
         """
+        # Opt-in preview of Django 7.0+ async-first signal guidance. Off by default
+        # because Model.__init__ and many internals still call send() under async
+        # views via sync_to_async; enabling this globally would warn on nearly
+        # every ORM touch. Set DJANGO_ASYNC_SIGNAL_WARN=1 to audit call sites.
+        import os
+
+        if os.environ.get("DJANGO_ASYNC_SIGNAL_WARN") == "1":
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                pass
+            else:
+                import warnings
+
+                warnings.warn(
+                    "Signal.send() was called from a running asyncio event loop. "
+                    "Use Signal.asend() in async code. Calling send() from async "
+                    "contexts will become an error under DJANGO_ASYNC_STRICT in "
+                    "Django 8.0.",
+                    RemovedInDjango71Warning,
+                    stacklevel=2,
+                )
         if (
             not self.receivers
             or self.sender_receivers_cache.get(sender) is NO_RECEIVERS
