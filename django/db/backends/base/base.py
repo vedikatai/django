@@ -278,6 +278,12 @@ class BaseDatabaseWrapper:
             with self.wrap_database_errors:
                 self.connect()
 
+    async def aensure_connection(self):
+        """Async-safe ensure_connection() via threadpool (sync drivers)."""
+        from asgiref.sync import sync_to_async
+
+        return await sync_to_async(self.ensure_connection)()
+
     # ##### Backend-specific wrappers for PEP-249 connection methods #####
 
     def _prepare_cursor(self, cursor):

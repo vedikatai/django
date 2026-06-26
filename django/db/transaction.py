@@ -146,6 +146,42 @@ def on_commit(func, using=None, robust=False):
     get_connection(using).on_commit(func, robust)
 
 
+async def aon_commit(func, using=None, robust=False):
+    """
+    Async-safe registration of an on_commit callback.
+
+    `func` may be sync or async. Async callables are scheduled with
+    ``asyncio.ensure_future`` when the transaction commits (or immediately
+    under autocommit). Prefer sync callables that schedule their own work
+    when integrating with an existing event loop policy.
+    """
+    import asyncio
+    import inspect
+
+    if not callable(func):
+        raise TypeError("aon_commit()'s callback must be a callable.")
+
+    if inspect.iscoroutinefunction(func):
+
+        def _wrapper():
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # No running loop at commit time (e.g. sync worker after ASGI).
+                asyncio.run(func())
+            else:
+                loop.create_task(func())
+
+        callback = _wrapper
+    else:
+        callback = func
+
+    # Register via thread so callers in async views don't block on connection state.
+    from asgiref.sync import sync_to_async
+
+    await sync_to_async(on_commit)(callback, using=using, robust=robust)
+
+
 #################################
 # Decorators / context managers #
 #################################

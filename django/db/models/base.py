@@ -1471,6 +1471,10 @@ class Model(AltersData, metaclass=ModelBase):
         if errors:
             raise ValidationError(errors)
 
+    async def avalidate_unique(self, exclude=None):
+        """Async variant of validate_unique() (DB lookups via threadpool)."""
+        return await sync_to_async(self.validate_unique)(exclude=exclude)
+
     def _get_unique_checks(self, exclude=None, include_meta_constraints=False):
         """
         Return a list of checks to perform. Since validate_unique() could be
@@ -1695,6 +1699,10 @@ class Model(AltersData, metaclass=ModelBase):
         if errors:
             raise ValidationError(errors)
 
+    async def avalidate_constraints(self, exclude=None):
+        """Async variant of validate_constraints() (DB lookups via threadpool)."""
+        return await sync_to_async(self.validate_constraints)(exclude=exclude)
+
     def full_clean(self, exclude=None, validate_unique=True, validate_constraints=True):
         """
         Call clean_fields(), clean(), validate_unique(), and
@@ -1741,6 +1749,16 @@ class Model(AltersData, metaclass=ModelBase):
 
         if errors:
             raise ValidationError(errors)
+
+    async def afull_clean(
+        self, exclude=None, validate_unique=True, validate_constraints=True
+    ):
+        """Async variant of full_clean() (unique/constraint checks via threadpool)."""
+        return await sync_to_async(self.full_clean)(
+            exclude=exclude,
+            validate_unique=validate_unique,
+            validate_constraints=validate_constraints,
+        )
 
     def clean_fields(self, exclude=None):
         """
