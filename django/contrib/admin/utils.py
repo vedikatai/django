@@ -632,3 +632,33 @@ def _get_changed_field_labels_from_form(form, changed_data):
             verbose_field_name = field_name
         changed_field_labels.append(str(verbose_field_name))
     return changed_field_labels
+
+
+def sanitize_admin_text_for_llm(value, *, max_length=500):
+    """
+    Best-effort scrub of model metadata before it is fed to external LLM tools.
+
+    This is an opt-in helper for 2030 threat models (AI-assisted admin operators).
+    It does not change default admin HTML rendering.
+    """
+    if value is None:
+        return ""
+    text = str(value)
+    # Strip obvious instruction-override patterns (defense in depth, not complete).
+    blocked = (
+        "ignore previous instructions",
+        "ignore all instructions",
+        "system prompt",
+        "you are now",
+    )
+    lower = text.lower()
+    for token in blocked:
+        if token in lower:
+            text = text.replace(token, "[filtered]")
+            text = text.replace(token.title(), "[filtered]")
+            # case variants
+            import re
+            text = re.sub(re.escape(token), "[filtered]", text, flags=re.I)
+    if len(text) > max_length:
+        text = text[: max_length - 3] + "..."
+    return text
