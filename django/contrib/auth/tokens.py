@@ -15,6 +15,9 @@ class PasswordResetTokenGenerator:
     algorithm = None
     _secret = None
     _secret_fallbacks = None
+    # Generated tokens are "<base36 ts>-<32 hex chars>" (~40 chars through ~2069).
+    # Bound attacker-controlled token length before HMAC work (DoS hardening).
+    max_token_length = 128
 
     def __init__(self):
         self.algorithm = self.algorithm or "sha256"
@@ -53,6 +56,9 @@ class PasswordResetTokenGenerator:
         Check that a password reset token is correct for a given user.
         """
         if not (user and token):
+            return False
+        # Reject non-strings and oversized tokens before any crypto work.
+        if not isinstance(token, str) or len(token) > self.max_token_length:
             return False
         # Parse the token
         try:

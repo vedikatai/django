@@ -92,6 +92,17 @@ class TokenGeneratorTest(TestCase):
         self.assertIs(p0.check_token(None, tk1), False)
         self.assertIs(p0.check_token(user, None), False)
 
+    def test_check_token_rejects_oversized_token(self):
+        """Oversized attacker-controlled tokens are rejected before HMAC work."""
+        user = User.objects.create_user("tokentestuser", "test2@example.com", "testpw")
+        p0 = PasswordResetTokenGenerator()
+        valid = p0.make_token(user)
+        self.assertLessEqual(len(valid), p0.max_token_length)
+        self.assertIs(p0.check_token(user, valid), True)
+        oversized = "a" * (p0.max_token_length + 1)
+        self.assertIs(p0.check_token(user, oversized), False)
+        self.assertIs(p0.check_token(user, b"not-a-str"), False)
+
     def test_token_with_different_secret(self):
         """
         A valid token can be created with a secret other than SECRET_KEY by

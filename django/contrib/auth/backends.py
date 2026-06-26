@@ -61,11 +61,32 @@ class ModelBackend(BaseBackend):
     Authenticates against settings.AUTH_USER_MODEL.
     """
 
+    # Defensive limits against CPU/memory DoS via extremely large credentials.
+    # Well above legitimate username/password sizes used with Django's User model.
+    max_username_length = 1000
+    max_password_length = 4096
+
+    def _credentials_within_limits(self, username, password):
+        # USERNAME_FIELD may be non-str on custom user models (e.g. integer PK).
+        try:
+            username_len = len(username) if isinstance(username, str) else len(str(username))
+        except (TypeError, ValueError):
+            return False
+        if username_len > self.max_username_length:
+            return False
+        if not isinstance(password, (str, bytes)):
+            return False
+        if len(password) > self.max_password_length:
+            return False
+        return True
+
     @sensitive_variables("password")
     def authenticate(self, request, username=None, password=None, **kwargs):
         if username is None:
             username = kwargs.get(UserModel.USERNAME_FIELD)
         if username is None or password is None:
+            return
+        if not self._credentials_within_limits(username, password):
             return
         try:
             user = UserModel._default_manager.get_by_natural_key(username)
@@ -82,6 +103,8 @@ class ModelBackend(BaseBackend):
         if username is None:
             username = kwargs.get(UserModel.USERNAME_FIELD)
         if username is None or password is None:
+            return
+        if not self._credentials_within_limits(username, password):
             return
         try:
             user = await UserModel._default_manager.aget_by_natural_key(username)

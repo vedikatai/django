@@ -1,8 +1,13 @@
 import re
 
 from django.conf import settings
+from django.core.exceptions import DisallowedHost, SuspiciousOperation
 from django.http import HttpResponsePermanentRedirect
 from django.utils.deprecation import MiddlewareMixin
+
+# Host values used in SSL redirects must not contain control characters that
+# could enable response-splitting via the Location header.
+_UNSAFE_HOST_CHARS = re.compile(r"[\x00-\x1f\x7f]")
 
 
 class SecurityMiddleware(MiddlewareMixin):
@@ -25,7 +30,12 @@ class SecurityMiddleware(MiddlewareMixin):
             and not request.is_secure()
             and not any(pattern.search(path) for pattern in self.redirect_exempt)
         ):
-            host = self.redirect_host or request.get_host()
+            try:
+                host = self.redirect_host or request.get_host()
+            except DisallowedHost:
+                raise
+            if not host or _UNSAFE_HOST_CHARS.search(host):
+                raise SuspiciousOperation("Unsafe host for SSL redirect.")
             return HttpResponsePermanentRedirect(
                 "https://%s%s" % (host, request.get_full_path())
             )

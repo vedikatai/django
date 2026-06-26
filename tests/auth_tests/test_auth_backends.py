@@ -671,6 +671,35 @@ class CustomUserModelBackendAuthenticateTest(TestCase):
         self.assertEqual(test_user, authenticated_user)
 
 
+class ModelBackendCredentialLimitsTests(TestCase):
+    """Defensive credential length limits on ModelBackend (DoS hardening)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("limituser", "limit@example.com", "goodpass")
+
+    def test_authenticate_rejects_oversized_username(self):
+        backend = ModelBackend()
+        huge_username = "x" * (backend.max_username_length + 1)
+        self.assertIsNone(
+            backend.authenticate(None, username=huge_username, password="goodpass")
+        )
+
+    def test_authenticate_rejects_oversized_password(self):
+        backend = ModelBackend()
+        huge_password = "p" * (backend.max_password_length + 1)
+        self.assertIsNone(
+            backend.authenticate(None, username="limituser", password=huge_password)
+        )
+
+    def test_authenticate_preserves_valid_credentials(self):
+        backend = ModelBackend()
+        self.assertEqual(
+            backend.authenticate(None, username="limituser", password="goodpass"),
+            self.user,
+        )
+
+
 @override_settings(AUTH_USER_MODEL="auth_tests.UUIDUser")
 class UUIDUserTests(TestCase):
     def test_login(self):
