@@ -1,3 +1,4 @@
+from django.core.exceptions import SuspiciousOperation
 from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase
 from django.test.utils import override_settings
@@ -218,6 +219,18 @@ class SecurityMiddlewareTest(SimpleTestCase):
         ret = self.process_request("get", "/some/url")
         self.assertEqual(ret.status_code, 301)
         self.assertEqual(ret["Location"], "https://secure.example.com/some/url")
+
+    @override_settings(
+        SECURE_SSL_REDIRECT=True, SECURE_SSL_HOST="evil.example.com\r\nX-Injected: 1"
+    )
+    def test_redirect_ssl_host_rejects_control_characters(self):
+        """
+        SECURE_SSL_HOST values with CR/LF are rejected to prevent response splitting.
+        """
+        middleware = self.middleware()
+        request = RequestFactory().get("/some/url")
+        with self.assertRaisesMessage(SuspiciousOperation, "Unsafe host for SSL redirect"):
+            middleware.process_request(request)
 
     @override_settings(SECURE_SSL_REDIRECT=False)
     def test_ssl_redirect_off(self):
