@@ -133,7 +133,13 @@ class TimeuntilTests(TimezoneTestCase):
 
 class FunctionTests(SimpleTestCase):
     def test_until_now(self):
-        self.assertEqual(timeuntil_filter(datetime.now() + timedelta(1, 1)), "1\xa0day")
+        # Explicit endpoints avoid wall-clock races between the argument and the
+        # filter's internal "now" (pass locally, intermittent fail on slow CI).
+        now = datetime(2024, 6, 15, 12, 0, 0)
+        self.assertEqual(
+            timeuntil_filter(now + timedelta(1, 1), now),
+            "1\xa0day",
+        )
 
     def test_no_args(self):
         self.assertEqual(timeuntil_filter(None), "")

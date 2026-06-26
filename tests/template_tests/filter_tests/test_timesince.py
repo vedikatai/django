@@ -167,7 +167,11 @@ class TimesinceTests(TimezoneTestCase):
 
 class FunctionTests(SimpleTestCase):
     def test_since_now(self):
-        self.assertEqual(timesince_filter(datetime.now() - timedelta(1)), "1\xa0day")
+        # Use an explicit pair of datetimes so the assertion does not depend on
+        # wall-clock timing between constructing the argument and the filter's
+        # internal "now" (can flake on slow CI near DST / midnight boundaries).
+        now = datetime(2024, 6, 15, 12, 0, 0)
+        self.assertEqual(timesince_filter(now - timedelta(1), now), "1\xa0day")
 
     def test_no_args(self):
         self.assertEqual(timesince_filter(None), "")
